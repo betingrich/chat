@@ -52,12 +52,6 @@ $(function() {
     sendMessage();
   });
 
-  socket.on('chat history', (messages) => {
-    messages.forEach(msg => {
-      addChatMessage({ username: msg.username, message: msg.message });
-    });
-  });
-
   socket.on('new message', data => {
     addChatMessage(data);
   });
