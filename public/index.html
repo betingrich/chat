@@ -1,42 +1,28 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CHATTING ROOM</title>
-    <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <title>Socket.IO Chat Example</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <!-- Login Page -->
-    <div class="login-container active">
-        <div class="auth-box">
-            <h1>VERIFICATION</h1>
-            <p class="subtitle">Enter your credentials to access the chat</p>
-            <input type="text" id="loginUsername" placeholder="Username" required>
-            <input type="password" id="loginPassword" placeholder="Password" required>
-            <button id="loginButton" class="login-button">VERIFY IDENTITY</button>
-            <div id="authError" class="error-message"></div>
-        </div>
-    </div>
+  <ul class="pages">
+    <li class="chat page">
+      <div class="chatArea">
+        <ul class="messages"></ul>
+      </div>
+      <input class="inputMessage" placeholder="Type here..."/>
+    </li>
+    <li class="login page">
+      <div class="form">
+        <h3 class="title">What's your nickname?</h3>
+        <input class="usernameInput" type="text" maxlength="14" />
+      </div>
+    </li>
+  </ul>
 
-    <!-- Chat Page -->
-    <div class="chat-container">
-        <header class="chat-header">
-            <div class="connection-status">CONNECTED</div>
-            <h1>CHATTING ROOM</h1>
-        </header>
-        
-        <div class="message-area" id="messageArea">
-            <!-- Messages will appear here -->
-        </div>
-        
-        <div class="input-area">
-            <input type="text" id="messageInput" placeholder="Type message..." autocomplete="off">
-            <button id="sendButton">SEND</button>
-        </div>
-    </div>
-
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
-    <script src="main.js"></script>
+  <script src="https://code.jquery.com/jquery-1.10.2.min.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/main.js"></script>
 </body>
 </html>
