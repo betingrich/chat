@@ -1,25 +1,42 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Chatroom</title>
-  <link rel="stylesheet" href="style.css">
-  <script src="/socket.io/socket.io.js"></script>
-  <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
-  <script src="main.js" defer></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CHATTING ROOM</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="login page">
-    <div class="form">
-      <h3>Enter your username</h3>
-      <input class="usernameInput" type="text" maxlength="14" placeholder="Username" />
+    <!-- Login Page -->
+    <div class="login-container active">
+        <div class="auth-box">
+            <h1>VERIFICATION</h1>
+            <p class="subtitle">Enter your credentials to access the chat</p>
+            <input type="text" id="loginUsername" placeholder="Username" required>
+            <input type="password" id="loginPassword" placeholder="Password" required>
+            <button id="loginButton" class="login-button">VERIFY IDENTITY</button>
+            <div id="authError" class="error-message"></div>
+        </div>
     </div>
-  </div>
 
-  <div class="chat page" style="display: none;">
-    <ul class="messages"></ul>
-    <input class="inputMessage" placeholder="Type here..." />
-    <button class="sendButton">Send</button>
-  </div>
+    <!-- Chat Page -->
+    <div class="chat-container">
+        <header class="chat-header">
+            <div class="connection-status">CONNECTED</div>
+            <h1>CHATTING ROOM</h1>
+        </header>
+        
+        <div class="message-area" id="messageArea">
+            <!-- Messages will appear here -->
+        </div>
+        
+        <div class="input-area">
+            <input type="text" id="messageInput" placeholder="Type message..." autocomplete="off">
+            <button id="sendButton">SEND</button>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="main.js"></script>
 </body>
 </html>
