@@ -17,21 +17,13 @@ $(function() {
 
   const socket = io();
 
-  // User state
   let username = '';
   let connected = false;
   let typing = false;
   let lastTypingTime;
   let $currentInput = $usernameInput.focus();
 
-  // Helper functions
-  const addParticipantsMessage = (data) => {
-    const message = data.numUsers === 1 
-      ? "there's 1 participant" 
-      : `there are ${data.numUsers} participants`;
-    log(message);
-  };
-
+  // Set username
   const setUsername = () => {
     username = cleanInput($usernameInput.val().trim());
 
@@ -40,38 +32,31 @@ $(function() {
       $chatPage.show();
       $loginPage.off('click');
       $currentInput = $inputMessage.focus();
+
+      // Tell the server your username
       socket.emit('add user', username);
     }
   };
 
+  // Send message
   const sendMessage = () => {
-    const message = cleanInput($inputMessage.val());
+    let message = $inputMessage.val();
+    message = cleanInput(message);
+    
     if (message && connected) {
       $inputMessage.val('');
       addChatMessage({ username, message });
       socket.emit('new message', message);
-      socket.emit('stop typing');
-      typing = false;
     }
   };
 
-  // Message display functions
-  const log = (message, options) => {
-    const $el = $('<li>').addClass('log').text(message);
-    addMessageElement($el, options);
-  };
-
+  // Add chat message
   const addChatMessage = (data, options = {}) => {
-    const $typingMessages = getTypingMessages(data);
-    if ($typingMessages.length !== 0) {
-      options.fade = false;
-      $typingMessages.remove();
-    }
-
     const $usernameDiv = $('<span class="username"/>')
       .text(data.username)
       .css('color', getUsernameColor(data.username));
-    const $messageBodyDiv = $('<span class="messageBody">').text(data.message);
+    const $messageBodyDiv = $('<span class="messageBody">')
+      .text(data.message);
 
     const $messageDiv = $('<li class="message"/>')
       .data('username', data.username)
@@ -80,10 +65,37 @@ $(function() {
     addMessageElement($messageDiv, options);
   };
 
-  // Socket event handlers
+  // Add message element
+  const addMessageElement = (el, options) => {
+    const $el = $(el);
+    
+    if (options.fade) {
+      $el.hide().fadeIn(FADE_TIME);
+    }
+    $messages.append($el);
+    $messages[0].scrollTop = $messages[0].scrollHeight;
+  };
+
+  // Clean input
+  const cleanInput = (input) => {
+    return $('<div/>').text(input).html();
+  };
+
+  // Keyboard events
+  $window.keydown(event => {
+    if (event.which === 13) { // Enter key
+      if (username) {
+        sendMessage();
+      } else {
+        setUsername();
+      }
+    }
+  });
+
+  // Socket events
   socket.on('login', (data) => {
     connected = true;
-    log('Welcome to the chatroom');
+    log('Welcome to the chat');
     addParticipantsMessage(data);
   });
 
@@ -91,15 +103,34 @@ $(function() {
     addChatMessage(data);
   });
 
-  socket.on('load messages', (messages) => {
-    messages.forEach(msg => {
-      addChatMessage({
-        username: msg.username,
-        message: msg.message
-      }, { fade: false });
-    });
+  socket.on('user joined', (data) => {
+    log(data.username + ' joined');
+    addParticipantsMessage(data);
   });
 
-  // Rest of your existing event handlers...
-  // (Keep all your existing typing, user joined/left handlers)
+  socket.on('user left', (data) => {
+    log(data.username + ' left');
+    addParticipantsMessage(data);
+  });
+
+  // Helper functions
+  function addParticipantsMessage(data) {
+    const message = data.numUsers === 1 ?
+      "There's 1 participant" :
+      `There are ${data.numUsers} participants`;
+    log(message);
+  }
+
+  function log(message) {
+    const $el = $('<li>').addClass('log').text(message);
+    addMessageElement($el);
+  }
+
+  function getUsernameColor(username) {
+    let hash = 7;
+    for (let i = 0; i < username.length; i++) {
+      hash = username.charCodeAt(i) + (hash << 5) - hash;
+    }
+    return COLORS[Math.abs(hash % COLORS.length)];
+  }
 });
