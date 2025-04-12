@@ -172,3 +172,72 @@ body, html {
 .fab:hover {
   transform: scale(1.1);
 }
+/* ===== RESPONSIVE STYLES ===== */
+
+@media screen and (max-width: 768px) {
+  .login.page .form {
+    padding: 1.5rem;
+    border-radius: 12px;
+    max-width: 90%;
+  }
+
+  .login.page .title {
+    font-size: 1.5rem;
+  }
+
+  .chatArea {
+    padding: 0.5rem;
+  }
+
+  .messageBody {
+    font-size: 0.95rem;
+    padding: 0.5rem 0.75rem;
+  }
+
+  .inputContainer {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 0.75rem;
+  }
+
+  .inputMessage {
+    width: 100%;
+    margin-bottom: 0.5rem;
+    font-size: 1rem;
+  }
+
+  .sendButton {
+    align-self: flex-end;
+    margin-left: 0;
+    font-size: 1.2rem;
+  }
+
+  .fab {
+    bottom: 1rem;
+    right: 1rem;
+    width: 48px;
+    height: 48px;
+    font-size: 1.5rem;
+  }
+}
+
+@media screen and (max-width: 480px) {
+  .login.page .title {
+    font-size: 1.2rem;
+  }
+
+  .messageBody {
+    max-width: 100%;
+    font-size: 0.9rem;
+  }
+
+  .sendButton i {
+    font-size: 0.9rem;
+  }
+
+  .fab {
+    width: 44px;
+    height: 44px;
+    font-size: 1.3rem;
+  }
+  }
