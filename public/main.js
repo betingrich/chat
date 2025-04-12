@@ -30,7 +30,7 @@ $(function() {
 
   const addChatMessage = (data) => {
     const $message = $('<li class="message"/>')
-      .append($('<span class="username"/>').text(data.username))
+      .append($('<span class="username"/>').text(data.username + ": "))
       .append($('<span class="messageBody"/>').text(data.message));
     $messages.append($message);
     $messages.scrollTop($messages[0].scrollHeight);
@@ -50,6 +50,12 @@ $(function() {
 
   $sendButton.click(() => {
     sendMessage();
+  });
+
+  socket.on('chat history', (messages) => {
+    messages.forEach(msg => {
+      addChatMessage({ username: msg.username, message: msg.message });
+    });
   });
 
   socket.on('new message', data => {
