@@ -2,27 +2,32 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Socket.IO Chat Example</title>
+  <title>Socket.IO Chat</title>
   <link rel="stylesheet" href="style.css">
+  <!-- Font Awesome for icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
 </head>
 <body>
-  <ul class="pages">
-    <li class="chat page">
-      <div class="chatArea">
-        <ul class="messages"></ul>
-      </div>
-      <input class="inputMessage" placeholder="Type here..."/>
-    </li>
-    <li class="login page">
-      <div class="form">
-        <h3 class="title">What's your nickname?</h3>
-        <input class="usernameInput" type="text" maxlength="14" />
-      </div>
-    </li>
-  </ul>
+  <div class="login page">
+    <div class="form">
+      <h3 class="title">Enter your nickname</h3>
+      <input class="usernameInput" type="text" maxlength="14" placeholder="Nickname" />
+    </div>
+  </div>
 
-  <script src="https://code.jquery.com/jquery-1.10.2.min.js"></script>
+  <div class="chat page" style="display: none;">
+    <div class="chatArea">
+      <ul class="messages"></ul>
+    </div>
+    <div class="inputContainer">
+      <input class="inputMessage" placeholder="Type a message..." />
+      <button class="sendButton"><i class="fas fa-paper-plane"></i></button>
+    </div>
+    <div class="fab"><i class="fas fa-plus"></i></div>
+  </div>
+
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <script src="/socket.io/socket.io.js"></script>
-  <script src="/main.js"></script>
+  <script src="main.js"></script>
 </body>
 </html>
