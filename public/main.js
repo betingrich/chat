@@ -1,7 +1,6 @@
 $(function() {
   // Constants
   const FADE_TIME = 150;
-  const TYPING_TIMER_LENGTH = 400;
   const COLORS = [
     '#e21400', '#91580f', '#f8a700', '#f78b00',
     '#58dc00', '#287b00', '#a8f07a', '#4ae8c4',
@@ -9,7 +8,6 @@ $(function() {
   ];
 
   // DOM Elements
-  const $window = $(window);
   const $usernameInput = $('.usernameInput');
   const $messages = $('.messages');
   const $inputMessage = $('.inputMessage');
@@ -22,70 +20,43 @@ $(function() {
   // User state
   let username = '';
   let connected = false;
-  let typing = false;
-  let lastTypingTime;
-  let $currentInput = $usernameInput.focus();
 
-  // Helper functions
-  function addParticipantsMessage(data) {
-    const message = data.numUsers === 1 ?
-      "There's 1 participant" :
-      `There are ${data.numUsers} participants`;
-    log(message);
-  }
-
+  // Set username and join chat
   function setUsername() {
-    username = cleanInput($usernameInput.val().trim());
-
+    username = $usernameInput.val().trim();
+    
     if (username) {
       $loginPage.fadeOut();
-      $chatPage.show();
-      $chatPage.prepend($loadingIndicator);
-      $loginPage.off('click');
-      $currentInput = $inputMessage.focus();
+      $chatPage.show().prepend($loadingIndicator);
+      $inputMessage.focus();
       socket.emit('add user', username);
     }
   }
 
+  // Send message
   function sendMessage() {
-    const message = cleanInput($inputMessage.val());
+    const message = $inputMessage.val().trim();
     if (message && connected) {
       $inputMessage.val('');
+      addChatMessage({ username, message });
       socket.emit('new message', message);
     }
   }
 
-  function log(message, options = {}) {
-    const $el = $('<li>').addClass('log').text(message);
-    addMessageElement($el, options);
-  }
-
+  // Add chat message to UI
   function addChatMessage(data, options = {}) {
-    const $usernameDiv = $('<span class="username"/>')
-      .text(data.username)
-      .css('color', getUsernameColor(data.username));
-    const $messageBodyDiv = $('<span class="messageBody">')
-      .text(data.message);
-
     const $messageDiv = $('<li class="message"/>')
-      .data('username', data.username)
-      .append($usernameDiv, $messageBodyDiv);
-
-    addMessageElement($messageDiv, options);
-  }
-
-  function addMessageElement($el, options) {
-    if (!options.fade) {
-      $el.css('opacity', 1);
-    }
-    $messages.append($el);
+      .append($('<span class="username"/>')
+        .text(data.username)
+        .css('color', getUsernameColor(data.username)))
+      .append($('<span class="messageBody">')
+        .text(data.message));
+    
+    $messages.append($messageDiv);
     $messages[0].scrollTop = $messages[0].scrollHeight;
   }
 
-  function cleanInput(input) {
-    return $('<div/>').text(input).html();
-  }
-
+  // Get color for username
   function getUsernameColor(username) {
     let hash = 7;
     for (let i = 0; i < username.length; i++) {
@@ -94,20 +65,18 @@ $(function() {
     return COLORS[Math.abs(hash % COLORS.length)];
   }
 
-  // Socket events
+  // Socket event handlers
   socket.on('login', (data) => {
     connected = true;
-    log(`Welcome, ${data.username}!`);
-    addParticipantsMessage(data);
+    $loadingIndicator.remove();
+    addSystemMessage('Welcome to the chat!');
+    addSystemMessage(`There ${data.numUsers === 1 ? 'is' : 'are'} ${data.numUsers} participant${data.numUsers === 1 ? '' : 's'}`);
   });
 
   socket.on('message history', (messages) => {
     $loadingIndicator.remove();
     messages.forEach(msg => {
-      addChatMessage({
-        username: msg.username,
-        message: msg.message
-      }, { fade: false });
+      addChatMessage(msg, { fade: false });
     });
   });
 
@@ -116,43 +85,35 @@ $(function() {
   });
 
   socket.on('user joined', (data) => {
-    log(`${data.username} joined`);
-    addParticipantsMessage(data);
+    addSystemMessage(`${data.username} joined`);
+    addSystemMessage(`There ${data.numUsers === 1 ? 'is' : 'are'} ${data.numUsers} participant${data.numUsers === 1 ? '' : 's'}`);
   });
 
   socket.on('user left', (data) => {
-    log(`${data.username} left`);
-    addParticipantsMessage(data);
+    addSystemMessage(`${data.username} left`);
+    addSystemMessage(`There ${data.numUsers === 1 ? 'is' : 'are'} ${data.numUsers} participant${data.numUsers === 1 ? '' : 's'}`);
   });
 
-  socket.on('disconnect', () => {
-    log('You have been disconnected');
+  socket.on('load_error', (msg) => {
+    $loadingIndicator.text(msg).css('color', 'red');
   });
 
-  socket.on('reconnect', () => {
-    log('You have been reconnected');
-    if (username) {
-      socket.emit('add user', username);
+  // Helper function for system messages
+  function addSystemMessage(msg) {
+    $messages.append($('<li class="system-message">').text(msg));
+    $messages[0].scrollTop = $messages[0].scrollHeight;
+  }
+
+  // Event listeners
+  $inputMessage.on('keydown', (e) => {
+    if (e.which === 13) { // Enter key
+      sendMessage();
     }
   });
 
-  socket.on('connect_error', () => {
-    log('Unable to connect to server');
-  });
-
-  socket.on('history_error', (err) => {
-    $loadingIndicator.text('Error loading messages').css('color', 'red');
-    console.error(err);
-  });
-
-  // Keyboard events
-  $window.keydown(event => {
-    if (event.which === 13) { // Enter key
-      if (username) {
-        sendMessage();
-      } else {
-        setUsername();
-      }
+  $usernameInput.on('keydown', (e) => {
+    if (e.which === 13) {
+      setUsername();
     }
   });
 });
