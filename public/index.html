@@ -7,20 +7,23 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="login page">
-    <div class="form">
-      <h3 class="title">What's your nickname?</h3>
-      <input class="usernameInput" type="text" maxlength="14" autocomplete="off" />
-    </div>
+  <div class="login-container">
+  <div class="login-box">
+    <h1 class="login-title">MARISEL'S CHATROOM</h1>
+    <p class="login-subtitle">Enter your credentials to join</p>
+    
+    <form class="login-form">
+      <input type="text" class="login-input" placeholder="Username" required>
+      
+      <div class="password-container">
+        <input type="password" class="login-input" id="password" placeholder="Password" required>
+        <span class="password-toggle">.</span>
+      </div>
+      
+      <button type="submit" class="login-button">ENTER CHAT</button>
+    </form>
   </div>
-
-  <div class="chat page">
-    <div class="chatArea">
-      <ul class="messages"></ul>
-    </div>
-    <input class="inputMessage" placeholder="Type here..." autocomplete="off" />
   </div>
-
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <script src="/socket.io/socket.io.js"></script>
   <script src="main.js"></script>
