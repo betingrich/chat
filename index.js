@@ -1,17 +1,16 @@
 require('dotenv').config();
 const express = require('express');
-const path = require('path');
-const http = require('http');
-const socketio = require('socket.io');
 const mongoose = require('mongoose');
+const socketio = require('socket.io');
+const path = require('path');
 
 const app = express();
-const server = http.createServer(app);
+const server = require('http').createServer(app);
 const io = socketio(server);
-const port = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3000;
 
-// MongoDB Connection
-const connectDB = async () => {
+// Enhanced MongoDB Connection
+const connectWithRetry = async () => {
   try {
     await mongoose.connect(process.env.MONGODB_URI, {
       serverApi: {
@@ -20,116 +19,63 @@ const connectDB = async () => {
         deprecationErrors: true,
       },
       connectTimeoutMS: 10000,
-      socketTimeoutMS: 45000
+      socketTimeoutMS: 30000,
+      retryWrites: true,
+      w: 'majority'
     });
     console.log('✅ MongoDB connected successfully');
   } catch (err) {
-    console.error('❌ MongoDB connection error:', err.message);
-    process.exit(1);
+    console.error('❌ MongoDB connection failed:', err.message);
+    console.log('🔄 Retrying connection in 5 seconds...');
+    setTimeout(connectWithRetry, 5000);
   }
 };
 
-// Message Schema
+// Message Model
 const messageSchema = new mongoose.Schema({
-  username: {
-    type: String,
-    required: [true, 'Username is required']
-  },
-  message: {
-    type: String,
-    required: [true, 'Message is required'],
-    maxlength: [500, 'Message too long']
-  },
-  timestamp: {
-    type: Date,
-    default: Date.now,
-    index: true
-  }
+  username: { type: String, required: true },
+  message: { type: String, required: true },
+  timestamp: { type: Date, default: Date.now }
 });
 const Message = mongoose.model('Message', messageSchema);
 
 // Middleware
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Socket.io Connection
+// Socket.io
 io.on('connection', async (socket) => {
-  console.log('🔌 New client connected:', socket.id);
-  let addedUser = false;
+  console.log('🔌 New connection:', socket.id);
 
   // Load message history
   try {
-    const messages = await Message.find()
-      .sort({ timestamp: 1 })
-      .limit(100)
-      .lean();
-    socket.emit('message history', messages);
-    console.log(`Sent ${messages.length} historical messages`);
+    const messages = await Message.find().sort({ timestamp: -1 }).limit(100);
+    socket.emit('message_history', messages.reverse());
   } catch (err) {
-    console.error('Error loading messages:', err);
-    socket.emit('load error', 'Failed to load message history');
+    console.error('❌ Failed to load messages:', err);
+    socket.emit('error', 'Failed to load messages');
   }
 
   // Handle new messages
-  socket.on('new message', async (data) => {
-    if (!addedUser || !data.trim()) return;
-
+  socket.on('send_message', async (data) => {
     try {
       const newMessage = new Message({
-        username: socket.username,
-        message: data
+        username: data.username,
+        message: data.message
       });
       await newMessage.save();
-      
-      io.emit('new message', {
-        username: socket.username,
-        message: data,
-        timestamp: newMessage.timestamp
-      });
-      console.log('New message saved:', data.substring(0, 20) + '...');
+      io.emit('new_message', newMessage);
     } catch (err) {
-      console.error('Message save error:', err);
-      socket.emit('message error', 'Failed to send message');
-    }
-  });
-
-  // Handle user joining
-  socket.on('add user', (username) => {
-    if (addedUser) return;
-
-    socket.username = username;
-    addedUser = true;
-    io.emit('user joined', {
-      username: username,
-      numUsers: io.engine.clientsCount
-    });
-    console.log(`User joined: ${username}`);
-  });
-
-  // Handle disconnection
-  socket.on('disconnect', () => {
-    if (addedUser) {
-      io.emit('user left', {
-        username: socket.username,
-        numUsers: io.engine.clientsCount
-      });
-      console.log(`User left: ${socket.username}`);
+      console.error('❌ Failed to save message:', err);
+      socket.emit('error', 'Failed to send message');
     }
   });
 });
 
 // Start server
-const startServer = async () => {
-  await connectDB();
-  server.listen(port, () => {
-    console.log(`🚀 Server running on port ${port}`);
-    console.log(`🔗 http://localhost:${port}`);
-  });
-};
-
-startServer();
+connectWithRetry();
+server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
 
 // Error handling
 process.on('unhandledRejection', (err) => {
   console.error('❌ Unhandled rejection:', err);
-  process.exit(1);
 });
