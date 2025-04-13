@@ -4,20 +4,21 @@ document.addEventListener('DOMContentLoaded', () => {
   const chatContainer = document.getElementById('chat-container');
   const messageForm = document.getElementById('message-form');
   const messageInput = document.getElementById('message-input');
-  const messagesContainer = document.getElementById('messages');
+  const messagesList = document.getElementById('messages');
   const usernameDisplay = document.getElementById('username-display');
 
-  // Socket.io connection
+  // Socket.io with mobile optimizations
   const socket = io({
     reconnection: true,
+    reconnectionDelay: 1000,
     reconnectionAttempts: Infinity,
-    reconnectionDelay: 1000
+    transports: ['websocket']
   });
 
   // State
   let currentUsername = '';
 
-  // Login handler
+  // Login Handler
   loginForm.addEventListener('submit', (e) => {
     e.preventDefault();
     currentUsername = document.getElementById('username').value.trim();
@@ -26,13 +27,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (currentUsername && password) {
       loginForm.style.display = 'none';
       chatContainer.style.display = 'block';
-      messageInput.focus();
       usernameDisplay.textContent = currentUsername;
-      addSystemMessage('Welcome to the chat!');
+      addSystemMessage('Connected to chatroom');
     }
   });
 
-  // Message handler
+  // Message Handler
   messageForm.addEventListener('submit', (e) => {
     e.preventDefault();
     const message = messageInput.value.trim();
@@ -46,13 +46,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Socket events
+  // Socket Events
   socket.on('connect', () => {
     addSystemMessage('Connected to server');
   });
 
   socket.on('disconnect', () => {
-    addSystemMessage('Disconnected from server');
+    addSystemMessage('Disconnected - reconnecting...');
   });
 
   socket.on('message_history', (messages) => {
@@ -61,38 +61,36 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  socket.on('new_message', (message) => {
-    addMessage(message.username, message.message, message.username === currentUsername);
+  socket.on('new_message', (msg) => {
+    if (msg.username !== currentUsername) {
+      addMessage(msg.username, msg.message, false);
+    }
   });
 
-  socket.on('error', (message) => {
-    addSystemMessage(`Error: ${message}`);
-  });
-
-  // Helper functions
+  // Helper Functions
   function addMessage(username, message, isOwn) {
-    const messageElement = document.createElement('div');
-    messageElement.className = `message ${isOwn ? 'own' : ''}`;
-    messageElement.innerHTML = `
+    const messageEl = document.createElement('div');
+    messageEl.className = `message ${isOwn ? 'own' : ''}`;
+    messageEl.innerHTML = `
       <div class="message-header">
         <span class="username">${username}</span>
-        <span class="timestamp">${new Date().toLocaleTimeString()}</span>
+        <span class="time">${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
       </div>
       <div class="message-content">${message}</div>
     `;
-    messagesContainer.appendChild(messageElement);
+    messagesList.appendChild(messageEl);
     scrollToBottom();
   }
 
-  function addSystemMessage(message) {
-    const element = document.createElement('div');
-    element.className = 'system-message';
-    element.textContent = message;
-    messagesContainer.appendChild(element);
+  function addSystemMessage(text) {
+    const el = document.createElement('div');
+    el.className = 'system-message';
+    el.textContent = text;
+    messagesList.appendChild(el);
     scrollToBottom();
   }
 
   function scrollToBottom() {
-    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    messagesList.scrollTop = messagesList.scrollHeight;
   }
 });
