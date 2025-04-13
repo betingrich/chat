@@ -1,164 +1,98 @@
 document.addEventListener('DOMContentLoaded', () => {
   // DOM Elements
-  const loginPage = document.querySelector('.login.page');
-  const chatPage = document.querySelector('.chat.page');
-  const usernameInput = document.querySelector('.usernameInput');
-  const passwordInput = document.querySelector('.passwordInput');
-  const loginButton = document.querySelector('.login-button');
-  const messageInput = document.querySelector('.inputMessage');
-  const sendButton = document.querySelector('.send-button');
-  const messagesList = document.querySelector('.messages');
-  const passwordToggle = document.querySelector('.password-toggle');
+  const loginForm = document.getElementById('login-form');
+  const chatContainer = document.getElementById('chat-container');
+  const messageForm = document.getElementById('message-form');
+  const messageInput = document.getElementById('message-input');
+  const messagesContainer = document.getElementById('messages');
+  const usernameDisplay = document.getElementById('username-display');
 
   // Socket.io connection
   const socket = io({
     reconnection: true,
-    reconnectionAttempts: 5,
+    reconnectionAttempts: Infinity,
     reconnectionDelay: 1000
   });
 
   // State
-  let username = '';
-  let connected = false;
-
-  // Password toggle
-  passwordToggle?.addEventListener('click', () => {
-    const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
-    passwordInput.setAttribute('type', type);
-    passwordToggle.textContent = type === 'password' ? '👁️' : '🔒';
-  });
+  let currentUsername = '';
 
   // Login handler
-  loginButton?.addEventListener('click', (e) => {
+  loginForm.addEventListener('submit', (e) => {
     e.preventDefault();
-    username = usernameInput.value.trim();
-    const password = passwordInput.value.trim();
+    currentUsername = document.getElementById('username').value.trim();
+    const password = document.getElementById('password').value.trim();
 
-    if (username && password) {
-      loginPage.style.display = 'none';
-      chatPage.style.display = 'block';
+    if (currentUsername && password) {
+      loginForm.style.display = 'none';
+      chatContainer.style.display = 'block';
       messageInput.focus();
-      socket.emit('add user', username);
-      addSystemMessage('Welcome to MARISEL\'S CHATROOM');
+      usernameDisplay.textContent = currentUsername;
+      addSystemMessage('Welcome to the chat!');
     }
   });
 
-  // Send message handler
-  function sendMessage() {
+  // Message handler
+  messageForm.addEventListener('submit', (e) => {
+    e.preventDefault();
     const message = messageInput.value.trim();
-    if (message && connected) {
-      socket.emit('new message', message);
-      addChatMessage({
-        username: 'You',
-        message: message,
-        timestamp: new Date()
-      }, true);
+    if (message) {
+      socket.emit('send_message', {
+        username: currentUsername,
+        message: message
+      });
+      addMessage(currentUsername, message, true);
       messageInput.value = '';
     }
-  }
-
-  // Enter key handler
-  messageInput?.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') {
-      sendMessage();
-    }
   });
 
-  sendButton?.addEventListener('click', sendMessage);
-
-  // Add chat message to UI
-  function addChatMessage(data, isSelf = false) {
-    const messageElement = document.createElement('li');
-    messageElement.className = `message ${isSelf ? 'sent' : 'received'}`;
-    
-    const bubble = document.createElement('div');
-    bubble.className = 'message-bubble';
-
-    const header = document.createElement('div');
-    header.className = 'message-header';
-    header.innerHTML = `
-      <span class="message-user">${data.username}</span>
-      <span class="message-time">${formatTime(data.timestamp)}</span>
-    `;
-
-    const content = document.createElement('div');
-    content.className = 'message-content';
-    content.textContent = data.message;
-
-    bubble.appendChild(header);
-    bubble.appendChild(content);
-    messageElement.appendChild(bubble);
-    messagesList.appendChild(messageElement);
-    scrollToBottom();
-  }
-
-  // Add system message
-  function addSystemMessage(text) {
-    const element = document.createElement('li');
-    element.className = 'system-message';
-    element.textContent = text;
-    messagesList.appendChild(element);
-    scrollToBottom();
-  }
-
-  // Format time
-  function formatTime(date) {
-    return new Date(date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  }
-
-  // Scroll to bottom
-  function scrollToBottom() {
-    messagesList.scrollTop = messagesList.scrollHeight;
-  }
-
-  // Socket.io events
+  // Socket events
   socket.on('connect', () => {
-    connected = true;
-    console.log('Connected to server');
-    addSystemMessage('Connected to chat server');
+    addSystemMessage('Connected to server');
   });
 
   socket.on('disconnect', () => {
-    connected = false;
     addSystemMessage('Disconnected from server');
   });
 
-  socket.on('connect_error', (err) => {
-    console.error('Connection error:', err);
-    addSystemMessage('Connection error. Trying to reconnect...');
-  });
-
-  socket.on('message history', (messages) => {
+  socket.on('message_history', (messages) => {
     messages.forEach(msg => {
-      addChatMessage({
-        username: msg.username,
-        message: msg.message,
-        timestamp: msg.timestamp
-      });
+      addMessage(msg.username, msg.message, msg.username === currentUsername);
     });
   });
 
-  socket.on('new message', (data) => {
-    addChatMessage({
-      username: data.username,
-      message: data.message,
-      timestamp: data.timestamp
-    });
+  socket.on('new_message', (message) => {
+    addMessage(message.username, message.message, message.username === currentUsername);
   });
 
-  socket.on('user joined', (data) => {
-    addSystemMessage(`${data.username} joined the chat`);
+  socket.on('error', (message) => {
+    addSystemMessage(`Error: ${message}`);
   });
 
-  socket.on('user left', (data) => {
-    addSystemMessage(`${data.username} left the chat`);
-  });
+  // Helper functions
+  function addMessage(username, message, isOwn) {
+    const messageElement = document.createElement('div');
+    messageElement.className = `message ${isOwn ? 'own' : ''}`;
+    messageElement.innerHTML = `
+      <div class="message-header">
+        <span class="username">${username}</span>
+        <span class="timestamp">${new Date().toLocaleTimeString()}</span>
+      </div>
+      <div class="message-content">${message}</div>
+    `;
+    messagesContainer.appendChild(messageElement);
+    scrollToBottom();
+  }
 
-  socket.on('load error', (err) => {
-    addSystemMessage(`Error: ${err}`);
-  });
+  function addSystemMessage(message) {
+    const element = document.createElement('div');
+    element.className = 'system-message';
+    element.textContent = message;
+    messagesContainer.appendChild(element);
+    scrollToBottom();
+  }
 
-  socket.on('message error', (err) => {
-    addSystemMessage(`Error: ${err}`);
-  });
+  function scrollToBottom() {
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+  }
 });
