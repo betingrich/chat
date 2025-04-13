@@ -8,28 +8,23 @@ const mongoose = require('mongoose');
 const port = process.env.PORT || 3000;
 
 // MongoDB Connection
-mongoose.connect(process.env.MONGODB_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
+const uri = process.env.MONGODB_URI || "mongodb+srv://ellyongiro8:<password>@cluster0.tyxcmm9.mongodb.net/chatdb?retryWrites=true&w=majority&appName=Cluster0";
+
+mongoose.connect(uri, {
+  serverApi: {
+    version: '1',
+    strict: true,
+    deprecationErrors: true,
+  }
 })
-.then(() => console.log('Connected to MongoDB'))
+.then(() => console.log('Connected to MongoDB!'))
 .catch(err => console.error('MongoDB connection error:', err));
 
 // Message Schema
 const messageSchema = new mongoose.Schema({
-  username: {
-    type: String,
-    required: true
-  },
-  message: {
-    type: String,
-    required: true
-  },
-  timestamp: {
-    type: Date,
-    default: Date.now,
-    index: true
-  }
+  username: String,
+  message: String,
+  timestamp: { type: Date, default: Date.now }
 });
 const Message = mongoose.model('Message', messageSchema);
 
@@ -45,51 +40,44 @@ io.on('connection', async (socket) => {
   // Load message history for new connections
   try {
     const messages = await Message.find()
-      .sort({ timestamp: 1 }) // Oldest first
-      .limit(100); // Limit to 100 messages
+      .sort({ timestamp: 1 })
+      .limit(100);
     socket.emit('message history', messages);
   } catch (err) {
-    console.error('Error loading message history:', err);
-    socket.emit('history_error', 'Failed to load message history');
+    console.error('Error loading messages:', err);
+    socket.emit('load_error', 'Failed to load messages');
   }
 
-  // When client sends a new message
+  // Handle new messages
   socket.on('new message', async (data) => {
     if (!addedUser) return;
 
     try {
-      // Save to database
       const newMessage = new Message({
         username: socket.username,
         message: data
       });
       await newMessage.save();
-
-      // Broadcast to all clients including sender
+      
       io.emit('new message', {
         username: socket.username,
-        message: data,
-        timestamp: newMessage.timestamp
+        message: data
       });
     } catch (err) {
       console.error('Error saving message:', err);
-      socket.emit('message_error', 'Failed to send message');
     }
   });
 
-  // When client adds a user
+  // Handle user joining
   socket.on('add user', (username) => {
     if (addedUser) return;
 
-    // Store username and update count
     socket.username = username;
     addedUser = true;
     numUsers++;
 
-    // Notify user and others
     socket.emit('login', {
-      numUsers: numUsers,
-      username: username
+      numUsers: numUsers
     });
     socket.broadcast.emit('user joined', {
       username: socket.username,
@@ -97,7 +85,7 @@ io.on('connection', async (socket) => {
     });
   });
 
-  // When client disconnects
+  // Handle disconnection
   socket.on('disconnect', () => {
     if (addedUser) {
       numUsers--;
