@@ -1,81 +1,84 @@
 require('dotenv').config();
 const express = require('express');
-const mongoose = require('mongoose');
+const http = require('http');
 const socketio = require('socket.io');
-const path = require('path');
+const { MongoClient } = require('mongodb');
 
 const app = express();
-const server = require('http').createServer(app);
-const io = socketio(server);
-const PORT = process.env.PORT || 3000;
+const server = http.createServer(app);
+const io = socketio(server, {
+  pingTimeout: 60000, // Higher timeout for mobile
+  transports: ['websocket'] // Better for mobile data
+});
 
-// Enhanced MongoDB Connection
-const connectWithRetry = async () => {
+// MongoDB Connection
+const uri = process.env.MONGODB_URI.replace(
+  '<db_password>',
+  encodeURIComponent(process.env.DB_PASSWORD)
+);
+
+const client = new MongoClient(uri, {
+  connectTimeoutMS: 15000,
+  socketTimeoutMS: 30000,
+  serverApi: { version: '1' }
+});
+
+let db;
+const connectDB = async () => {
   try {
-    await mongoose.connect(process.env.MONGODB_URI, {
-      serverApi: {
-        version: '1',
-        strict: true,
-        deprecationErrors: true,
-      },
-      connectTimeoutMS: 10000,
-      socketTimeoutMS: 30000,
-      retryWrites: true,
-      w: 'majority'
-    });
-    console.log('✅ MongoDB connected successfully');
+    await client.connect();
+    db = client.db('chatdb');
+    console.log('✅ MongoDB Connected');
   } catch (err) {
-    console.error('❌ MongoDB connection failed:', err.message);
-    console.log('🔄 Retrying connection in 5 seconds...');
-    setTimeout(connectWithRetry, 5000);
+    console.error('❌ DB Connection Error:', err);
+    process.exit(1);
   }
 };
 
-// Message Model
-const messageSchema = new mongoose.Schema({
-  username: { type: String, required: true },
-  message: { type: String, required: true },
-  timestamp: { type: Date, default: Date.now }
-});
-const Message = mongoose.model('Message', messageSchema);
-
-// Middleware
-app.use(express.static(path.join(__dirname, 'public')));
-
-// Socket.io
+// Chatroom Logic
 io.on('connection', async (socket) => {
-  console.log('🔌 New connection:', socket.id);
+  console.log('📱 New mobile connection:', socket.id);
 
-  // Load message history
+  // Load last 50 messages
   try {
-    const messages = await Message.find().sort({ timestamp: -1 }).limit(100);
+    const messages = await db.collection('messages')
+      .find()
+      .sort({ timestamp: -1 })
+      .limit(50)
+      .toArray();
     socket.emit('message_history', messages.reverse());
   } catch (err) {
-    console.error('❌ Failed to load messages:', err);
-    socket.emit('error', 'Failed to load messages');
+    console.error('Error loading messages:', err);
   }
 
-  // Handle new messages
+  // Handle new message
   socket.on('send_message', async (data) => {
     try {
-      const newMessage = new Message({
+      const newMsg = {
         username: data.username,
-        message: data.message
-      });
-      await newMessage.save();
-      io.emit('new_message', newMessage);
+        message: data.message,
+        timestamp: new Date()
+      };
+      
+      await db.collection('messages').insertOne(newMsg);
+      io.emit('new_message', newMsg);
     } catch (err) {
-      console.error('❌ Failed to save message:', err);
-      socket.emit('error', 'Failed to send message');
+      console.error('Error saving message:', err);
     }
+  });
+
+  // Handle disconnection
+  socket.on('disconnect', () => {
+    console.log('📱 User disconnected:', socket.id);
   });
 });
 
-// Start server
-connectWithRetry();
-server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+// Start Server
+const startServer = async () => {
+  await connectDB();
+  server.listen(process.env.PORT || 3000, () => {
+    console.log(`🚀 Server running on port ${process.env.PORT || 3000}`);
+  });
+};
 
-// Error handling
-process.on('unhandledRejection', (err) => {
-  console.error('❌ Unhandled rejection:', err);
-});
+startServer();
