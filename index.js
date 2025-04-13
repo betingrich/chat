@@ -8,92 +8,107 @@ const mongoose = require('mongoose');
 const port = process.env.PORT || 3000;
 
 // MongoDB Connection
-mongoose.connect(process.env.MONGODB_URI)
-  .then(() => console.log('Connected to MongoDB'))
-  .catch(err => console.error('MongoDB connection error:', err));
+mongoose.connect(process.env.MONGODB_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true
+})
+.then(() => console.log('Connected to MongoDB'))
+.catch(err => console.error('MongoDB connection error:', err));
 
 // Message Schema
 const messageSchema = new mongoose.Schema({
-  username: String,
-  message: String,
-  timestamp: { type: Date, default: Date.now }
+  username: {
+    type: String,
+    required: true
+  },
+  message: {
+    type: String,
+    required: true
+  },
+  timestamp: {
+    type: Date,
+    default: Date.now,
+    index: true
+  }
 });
 const Message = mongoose.model('Message', messageSchema);
 
-server.listen(port, () => {
-  console.log('Server listening at port %d', port);
-});
-
-// Routing
+// Serve static files
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Chatroom
 let numUsers = 0;
 
-io.on('connection', (socket) => {
+io.on('connection', async (socket) => {
   let addedUser = false;
 
-  // Load previous messages
-  Message.find().sort({ timestamp: -1 }).limit(50)
-    .then(messages => {
-      socket.emit('load messages', messages.reverse());
-    })
-    .catch(err => console.error('Error loading messages:', err));
+  // Load message history for new connections
+  try {
+    const messages = await Message.find()
+      .sort({ timestamp: 1 }) // Oldest first
+      .limit(100); // Limit to 100 messages
+    socket.emit('message history', messages);
+  } catch (err) {
+    console.error('Error loading message history:', err);
+    socket.emit('history_error', 'Failed to load message history');
+  }
 
-  // New message handler
+  // When client sends a new message
   socket.on('new message', async (data) => {
     if (!addedUser) return;
 
     try {
-      // Save message to database
+      // Save to database
       const newMessage = new Message({
         username: socket.username,
         message: data
       });
       await newMessage.save();
 
-      // Broadcast to all users
+      // Broadcast to all clients including sender
       io.emit('new message', {
         username: socket.username,
-        message: data
+        message: data,
+        timestamp: newMessage.timestamp
       });
     } catch (err) {
       console.error('Error saving message:', err);
+      socket.emit('message_error', 'Failed to send message');
     }
   });
 
-  // Add user handler
+  // When client adds a user
   socket.on('add user', (username) => {
     if (addedUser) return;
 
+    // Store username and update count
     socket.username = username;
-    ++numUsers;
     addedUser = true;
-    
-    socket.emit('login', { numUsers });
+    numUsers++;
+
+    // Notify user and others
+    socket.emit('login', {
+      numUsers: numUsers,
+      username: username
+    });
     socket.broadcast.emit('user joined', {
       username: socket.username,
       numUsers: numUsers
     });
   });
 
-  // Typing indicators
-  socket.on('typing', () => {
-    socket.broadcast.emit('typing', { username: socket.username });
-  });
-
-  socket.on('stop typing', () => {
-    socket.broadcast.emit('stop typing', { username: socket.username });
-  });
-
-  // Disconnect handler
+  // When client disconnects
   socket.on('disconnect', () => {
     if (addedUser) {
-      --numUsers;
+      numUsers--;
       socket.broadcast.emit('user left', {
         username: socket.username,
         numUsers: numUsers
       });
     }
   });
+});
+
+server.listen(port, () => {
+  console.log(`Server listening on port ${port}`);
 });
