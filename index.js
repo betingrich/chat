@@ -1,56 +1,77 @@
 require('dotenv').config();
 const express = require('express');
-const app = express();
 const path = require('path');
-const server = require('http').createServer(app);
-const io = require('socket.io')(server);
+const http = require('http');
+const socketio = require('socket.io');
 const mongoose = require('mongoose');
+
+const app = express();
+const server = http.createServer(app);
+const io = socketio(server);
 const port = process.env.PORT || 3000;
 
 // MongoDB Connection
-const uri = process.env.MONGODB_URI || "mongodb+srv://ellyongiro8:<password>@cluster0.tyxcmm9.mongodb.net/chatdb?retryWrites=true&w=majority&appName=Cluster0";
-
-mongoose.connect(uri, {
-  serverApi: {
-    version: '1',
-    strict: true,
-    deprecationErrors: true,
+const connectDB = async () => {
+  try {
+    await mongoose.connect(process.env.MONGODB_URI, {
+      serverApi: {
+        version: '1',
+        strict: true,
+        deprecationErrors: true,
+      },
+      connectTimeoutMS: 10000,
+      socketTimeoutMS: 45000
+    });
+    console.log('✅ MongoDB connected successfully');
+  } catch (err) {
+    console.error('❌ MongoDB connection error:', err.message);
+    process.exit(1);
   }
-})
-.then(() => console.log('Connected to MongoDB!'))
-.catch(err => console.error('MongoDB connection error:', err));
+};
 
 // Message Schema
 const messageSchema = new mongoose.Schema({
-  username: String,
-  message: String,
-  timestamp: { type: Date, default: Date.now }
+  username: {
+    type: String,
+    required: [true, 'Username is required']
+  },
+  message: {
+    type: String,
+    required: [true, 'Message is required'],
+    maxlength: [500, 'Message too long']
+  },
+  timestamp: {
+    type: Date,
+    default: Date.now,
+    index: true
+  }
 });
 const Message = mongoose.model('Message', messageSchema);
 
-// Serve static files
+// Middleware
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Chatroom
-let numUsers = 0;
-
+// Socket.io Connection
 io.on('connection', async (socket) => {
+  console.log('🔌 New client connected:', socket.id);
   let addedUser = false;
 
-  // Load message history for new connections
+  // Load message history
   try {
     const messages = await Message.find()
       .sort({ timestamp: 1 })
-      .limit(100);
+      .limit(100)
+      .lean();
     socket.emit('message history', messages);
+    console.log(`Sent ${messages.length} historical messages`);
   } catch (err) {
     console.error('Error loading messages:', err);
-    socket.emit('load_error', 'Failed to load messages');
+    socket.emit('load error', 'Failed to load message history');
   }
 
   // Handle new messages
   socket.on('new message', async (data) => {
-    if (!addedUser) return;
+    if (!addedUser || !data.trim()) return;
 
     try {
       const newMessage = new Message({
@@ -61,10 +82,13 @@ io.on('connection', async (socket) => {
       
       io.emit('new message', {
         username: socket.username,
-        message: data
+        message: data,
+        timestamp: newMessage.timestamp
       });
+      console.log('New message saved:', data.substring(0, 20) + '...');
     } catch (err) {
-      console.error('Error saving message:', err);
+      console.error('Message save error:', err);
+      socket.emit('message error', 'Failed to send message');
     }
   });
 
@@ -74,29 +98,38 @@ io.on('connection', async (socket) => {
 
     socket.username = username;
     addedUser = true;
-    numUsers++;
-
-    socket.emit('login', {
-      numUsers: numUsers
+    io.emit('user joined', {
+      username: username,
+      numUsers: io.engine.clientsCount
     });
-    socket.broadcast.emit('user joined', {
-      username: socket.username,
-      numUsers: numUsers
-    });
+    console.log(`User joined: ${username}`);
   });
 
   // Handle disconnection
   socket.on('disconnect', () => {
     if (addedUser) {
-      numUsers--;
-      socket.broadcast.emit('user left', {
+      io.emit('user left', {
         username: socket.username,
-        numUsers: numUsers
+        numUsers: io.engine.clientsCount
       });
+      console.log(`User left: ${socket.username}`);
     }
   });
 });
 
-server.listen(port, () => {
-  console.log(`Server listening on port ${port}`);
+// Start server
+const startServer = async () => {
+  await connectDB();
+  server.listen(port, () => {
+    console.log(`🚀 Server running on port ${port}`);
+    console.log(`🔗 http://localhost:${port}`);
+  });
+};
+
+startServer();
+
+// Error handling
+process.on('unhandledRejection', (err) => {
+  console.error('❌ Unhandled rejection:', err);
+  process.exit(1);
 });
